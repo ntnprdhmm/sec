@@ -5,15 +5,7 @@ import re
 
 # this script will check if GET parameters are injectables
 #
-# Parameters to set
-# -p [parameter...]
-#
-# website URI
-# use quotes around the URI if they are many parameters !
-# -w [uri]
-#
-# example
-# py sqli_checker.py -w "http://mywebsite.com/index.php?item=42&collection=3" -p item collection
+# py sqli_checker.py [website URI] [parameter to inject...]
 
 """ Replace the attributes that are in to_inject by SQL
 """
@@ -27,33 +19,27 @@ def inject_SQL(uri, to_inject):
 
 	return first_part + '?' + '&'.join(params)
 
-regex_script_param = re.compile(r'^-[a-z]$')
+regex_script_param = re.compile(r'^-[a-z]+$')
 
-uri = None
-to_inject = []
+# required script name and URI at least
+if len(sys.argv) < 2:
+	sys.exit("[ERROR] You have to pass the URI to test as a parameter !")
 
-for i in range(len(sys.argv)):
+# read the uri to test
+uri = sys.argv[1]
+
+# read the parameters and options
+parameters = []
+options = []
+for i in range(1, len(sys.argv)):
 	arg = sys.argv[i]
-	# read the arg that follow -w
-	if arg == "-w":
-		i += 1
-		if len(sys.argv) > i:
-			uri = sys.argv[i]
-
-	# read all the args that follow -p
-	if arg == '-p':
-		i += 1
-		# continu while there are args and the cursor is in the -p args list
-		while len(sys.argv) > i and not re.match(regex_script_param, sys.argv[i]):
-			to_inject.append(sys.argv[i])
-			i += 1
-
-# if there is no value for -w parameter, throw an error and exit
-if uri is None:
-	sys.exit("[ERROR] You have to pass the URI to test to the -w parameter !")
+	if re.match(regex_script_param, arg):
+		options.append(arg)
+	else:
+		parameters.append(arg)
 
 # make the request
-resp = urllib.request.urlopen(inject_SQL(uri, to_inject))
+resp = urllib.request.urlopen(inject_SQL(uri, parameters))
 
 # parse response
 body = resp.read()
@@ -62,5 +48,6 @@ full_body = body.decode('utf-8')
 # check vulnerability by looking at the response
 if "You have an error in your SQL syntax" in full_body:
 	print ("Vulnerable to SQL injection !!")
+	print ("MYSQL database")
 else:
 	print ("Not vulnerable to SQL injection.")
