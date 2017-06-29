@@ -3,15 +3,35 @@
 import socket
 import subprocess
 import sys
+import re
 from datetime import datetime
+
+def is_port_open(host, port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    result = sock.connect_ex((host, port))
+    sock.close()
+    return result == 0
+
 
 # clear the console
 subprocess.call('clear', shell=True)
 
-# read the remote host
-if len(sys.argv) < 2:
+rgx_option = re.compile(r'^(--[a-z]{2})|(-[a-z])$')
+rgx_host = re.compile(r'^www.')
+
+# read the remote host and options
+options = []
+remote_server = None
+
+for arg in sys.argv:
+    if re.match(rgx_host, arg):
+        remote_server = arg
+    if re.match(rgx_option, arg):
+        options.append(arg)
+
+if not remote_server:
 	sys.exit("[ERROR] You have to pass the remote host to scan as a parameter !")
-remote_server = sys.argv[1]
 
 # get the ip adress of this host
 remote_server_ip = socket.gethostbyname(remote_server)
@@ -24,16 +44,18 @@ print ("IP adress : %s \n" % remote_server_ip)
 print ("Scanning the remote host, please wait...")
 start_time = datetime.now()
 
-# try each port from 1 to 1024
-try:
+if '--fast' in options:
+    # try only the common ports
+    ports = [20, 21, 22, 23, 25, 53, 68, 80, 110, 137, 138, 139, 143, 220, 443, 445]
+else:
+    # try each port from 1 to 1024
     print("it can take a while")
-    for port in range(1, 1025):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex((remote_server_ip, port))
-        if result == 0:
+    ports = range(1, 1025)
+
+try:
+    for port in ports:
+        if is_port_open(remote_server_ip, port):
             print ("Port %d: 	 Open" % port)
-        sock.close()
 
 # handle quit
 except KeyboardInterrupt:
